@@ -15,6 +15,9 @@ indent_size = 4
 # IDE0160: Use file-scoped namespace
 csharp_style_namespace_declarations = file_scoped:error
 
+# IDE0011: Require braces
+csharp_prefer_braces = true:error
+
 # IDE0008: Use var when type is apparent
 csharp_style_var_for_built_in_types = true:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
