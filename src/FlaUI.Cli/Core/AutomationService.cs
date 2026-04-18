@@ -16,7 +16,7 @@ internal sealed class AutomationService : IAutomationService, IDisposable
     private Window? _attachedWindow;
     private Dictionary<ElementRef, AutomationElement> _activeElements = [];
 
-    public Task<WindowInfo> LaunchAsync(
+    public async Task<WindowInfo> LaunchAsync(
         string fileName,
         string? arguments,
         CancellationToken cancellationToken)
@@ -31,12 +31,39 @@ internal sealed class AutomationService : IAutomationService, IDisposable
             Arguments = arguments ?? string.Empty
         };
         using var application = Application.Launch(startInfo);
-        SetAttachedWindow(application.GetMainWindow(_automation, TimeSpan.FromSeconds(30)));
+        application.WaitWhileBusy(TimeSpan.FromSeconds(10));
+
+        Window? window = null;
+
+        try
+        {
+            window = application.GetMainWindow(_automation, TimeSpan.FromSeconds(1));
+            window ??= application.GetAllTopLevelWindows(_automation).FirstOrDefault();
+        }
+        catch
+        {
+            // Ignore exceptions from FlaUI and fallback to searching windows by process ID.
+        }
+
+        // fallback: search for windows belonging to the process ID, in case the launched app doesn't expose a main window or FlaUI fails to find it.
+        if (window is null)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken); // Wait a moment for the window to appear.
+            var name = Path.GetFileNameWithoutExtension(fileName);
+            window = _automation.GetDesktop()
+            .FindAllChildren(cf => cf.ByControlType(ControlType.Window))
+            .Select(child => child.AsWindow())
+            .FirstOrDefault(
+                w => w.ToWindowInfo().ProcessName.Contains(name, StringComparison.OrdinalIgnoreCase)
+            );
+        }
+
+        SetAttachedWindow(window);
         if (_attachedWindow is null)
         {
-            throw new InvalidOperationException($"Failed to find main window of the launched application '{fileName}'.");
+            throw new InvalidOperationException($"Failed to find any window for the launched application '{fileName}'.");
         }
-        return Task.FromResult(_attachedWindow.ToWindowInfo());
+        return _attachedWindow.ToWindowInfo();
     }
 
     public Task<WindowInfo> AttachAsync(
@@ -46,11 +73,11 @@ internal sealed class AutomationService : IAutomationService, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var firstWindow = _automation.GetDesktop()
+        var window = _automation.GetDesktop()
                 .FindAllChildren(cf => cf.ByControlType(ControlType.Window))
                 .Select(child => child.AsWindow())
                 .FirstOrDefault(window => window.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
-        SetAttachedWindow(firstWindow);
+        SetAttachedWindow(window);
         if (_attachedWindow is null)
         {
             throw new InvalidOperationException($"Failed to find window with title containing '{title}'.");
