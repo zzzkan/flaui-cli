@@ -41,30 +41,37 @@ internal static class DaemonProcessManager
     {
         var daemonInfo = await DaemonPidFile.ReadIfExistsAsync(cancellationToken)
                 ?? throw new InvalidOperationException("Daemon is not running.");
-        using var process = Process.GetProcessById(daemonInfo.ProcessId);
-        if (process.HasExited)
+        try
+        {
+            using var process = Process.GetProcessById(daemonInfo.ProcessId);
+            process.Kill();
+            await process.WaitForExitAsync(cancellationToken);
+            return daemonInfo;
+        }
+        catch
+        {
+            throw new InvalidOperationException("Failed to stop the daemon process. It may have already exited, or the PID file may be stale. Cleaned up the PID file.");
+        }
+        finally
         {
             DaemonPidFile.DeleteIfExists();
-            throw new InvalidOperationException("Daemon is not running but PID file exists. Cleaned up the PID file.");
         }
-
-        process.Kill();
-        await process.WaitForExitAsync(cancellationToken);
-        DaemonPidFile.DeleteIfExists();
-        return daemonInfo;
     }
 
     public static async Task<DaemonInfo?> EnsureExternalProcessRunningAsync(CancellationToken cancellationToken = default)
     {
         if (await DaemonPidFile.ReadIfExistsAsync(cancellationToken) is { } daemonInfo)
         {
-            using var existingProcess = Process.GetProcessById(daemonInfo.ProcessId);
-            if (existingProcess.HasExited)
+            try
+            {
+                using var existingProcess = Process.GetProcessById(daemonInfo.ProcessId);
+                return null; // Daemon is already running, no need to start a new one.
+            }
+            catch
             {
                 DaemonPidFile.DeleteIfExists();
                 throw new InvalidOperationException("Daemon is not running but PID file exists. Cleaned up the PID file.");
             }
-            return null; // Already running, no need to start a new one.
         }
 
         var processPath = Environment.ProcessPath ?? string.Empty;
