@@ -182,8 +182,8 @@ internal sealed class AutomationService : IAutomationService, IDisposable
         ArgumentNullException.ThrowIfNull(target);
         cancellationToken.ThrowIfCancellationRequested();
 
-        EnsureRootWindowRef(target);
-        RequireElement(target).Focus();
+        var element = RequireElement(target);
+        element.Focus();
         return Task.CompletedTask;
     }
 
@@ -194,7 +194,6 @@ internal sealed class AutomationService : IAutomationService, IDisposable
         ArgumentNullException.ThrowIfNull(target);
         cancellationToken.ThrowIfCancellationRequested();
 
-        EnsureRootWindowRef(target);
         var window = RequireElement(target).AsWindow() ?? throw new InvalidOperationException($"Element {target} is not a window and cannot be closed.");
         window.Close();
         return Task.CompletedTask;
@@ -214,14 +213,6 @@ internal sealed class AutomationService : IAutomationService, IDisposable
     private void ClearAttachedState()
     {
         SetAttachedWindow(null);
-    }
-
-    private static void EnsureRootWindowRef(ElementRef target)
-    {
-        if (target.Element != 1)
-        {
-            throw new InvalidOperationException("Only the root window ref from the latest snapshot can be used for this command.");
-        }
     }
 
     private Window RequireAttachedWindow()
