@@ -1,0 +1,141 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      release-version:
+        description: Version to pack for a manual dry run, for example 1.2.3
+        required: true
+        type: string
+
+concurrency:
+  group: publish-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ARTIFACT_DIR: artifacts
+  DOTNET_VERSION: 10.0.x
+  NUGET_SOURCE: https://api.nuget.org/v3/index.json
+  PACKAGE_ID: flaui-cli
+  PROJECT_PATH: src/FlaUI.Cli/FlaUI.Cli.csproj
+  RUNTIME_PACKAGE_ID: flaui-cli.win-x64
+  CI: true
+
+jobs:
+  release:
+    name: Pack Publish And Release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Resolve Release Version
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ('${{ github.event_name }}' -eq 'push') {
+            $tag = '${{ github.ref_name }}'
+            if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+              throw "Release tags must look like v1.2.3. Received '$tag'."
+            }
+
+            $releaseVersion = $tag.Substring(1)
+          }
+          else {
+            $releaseVersion = '${{ inputs.release-version }}'
+          }
+
+          if (-not $releaseVersion) {
+            throw 'Release version is required.'
+          }
+
+          if ($releaseVersion -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Version must look like 1.2.3. Received '$releaseVersion'."
+          }
+
+          "package_version=$releaseVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Pack
+        run: >-
+          dotnet pack ${{ env.PROJECT_PATH }}
+          --configuration Release
+          --no-restore
+          --output ${{ env.ARTIFACT_DIR }}
+          -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ steps.version.outputs.package_version }}
+          -p:PackageVersion=${{ steps.version.outputs.package_version }}
+
+      - name: Smoke Test Tool Install
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $toolPath = Join-Path $env:RUNNER_TEMP 'flaui-cli-tool'
+          $packageSource = Join-Path $env:GITHUB_WORKSPACE $env:ARTIFACT_DIR
+
+          Remove-Item -Path $toolPath -Recurse -Force -ErrorAction SilentlyContinue
+
+          dotnet tool install `
+            --tool-path $toolPath `
+            --add-source $packageSource `
+            $env:PACKAGE_ID `
+            --version '${{ steps.version.outputs.package_version }}'
+
+          & (Join-Path $toolPath 'flaui-cli.cmd') --help
+
+      - name: NuGet Login
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish Packages
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $packages = @(
+            "${{ env.ARTIFACT_DIR }}/${{ env.PACKAGE_ID }}.${{ steps.version.outputs.package_version }}.nupkg"
+            "${{ env.ARTIFACT_DIR }}/${{ env.RUNTIME_PACKAGE_ID }}.${{ steps.version.outputs.package_version }}.nupkg"
+          )
+
+          foreach ($package in $packages) {
+            dotnet nuget push $package --api-key '${{ steps.nuget-login.outputs.NUGET_API_KEY }}' --source $env:NUGET_SOURCE --skip-duplicate
+          }
+
+      - name: Create Or Update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = '${{ github.ref_name }}'
+          $packages = @(
+            "${{ env.ARTIFACT_DIR }}/${{ env.PACKAGE_ID }}.${{ steps.version.outputs.package_version }}.nupkg"
+            "${{ env.ARTIFACT_DIR }}/${{ env.RUNTIME_PACKAGE_ID }}.${{ steps.version.outputs.package_version }}.nupkg"
+          )
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $packages --clobber --repo $env:GITHUB_REPOSITORY
+          }
+          else {
+            gh release create $tag $packages --title $tag --generate-notes --repo $env:GITHUB_REPOSITORY
+          }

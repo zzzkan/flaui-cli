@@ -20,7 +20,6 @@
 
     <ToolCommandName>flaui-cli</ToolCommandName>
     <PackageId>flaui-cli</PackageId>
-    <Version>0.1.0</Version>
     <Description>CLI for Windows apps automation using FlaUI.</Description>
     <Authors>zzzkan</Authors>
     <Copyright>Copyright (c) zzzkan 2026</Copyright>
