@@ -12,9 +12,102 @@ internal static class AutomationElementExtensions
 
         public string? SnapshotName => ReadDisplayName(element);
 
-        public string? SnapshotValue => ReadSnapshotValue(element);
+        public string? SnapshotValue
+        {
+            get
+            {
+                var controlType = ReadControlType(element);
+                var value = controlType switch
+                {
+                    ControlType.Edit or ControlType.ComboBox =>
+                        element.Patterns.Value.TryGetPattern(out var valuePattern)
+                        && valuePattern.Value.TryGetValue(out var patternValue)
+                            ? patternValue
+                            : null,
+                    ControlType.Spinner =>
+                        element.Patterns.Value.TryGetPattern(out var spinnerValuePattern)
+                        && spinnerValuePattern.Value.TryGetValue(out var spinnerValue)
+                            ? spinnerValue
+                            : element.Patterns.RangeValue.TryGetPattern(out var spinnerRangeValuePattern)
+                            && spinnerRangeValuePattern.Value.TryGetValue(out var spinnerRangeValue)
+                                ? spinnerRangeValue.ToString("0.###", CultureInfo.InvariantCulture)
+                                : null,
+                    ControlType.Slider or ControlType.ProgressBar =>
+                        element.Patterns.RangeValue.TryGetPattern(out var rangeValuePattern)
+                        && rangeValuePattern.Value.TryGetValue(out var rangeValue)
+                            ? rangeValue.ToString("0.###", CultureInfo.InvariantCulture)
+                            : null,
+                    _ => null,
+                };
 
-        public IReadOnlyList<string> SnapshotStates => ReadStates(element);
+                return string.Equals(ReadDisplayName(element), value, StringComparison.Ordinal) ? null : value;
+            }
+        }
+
+        public IReadOnlyList<string> SnapshotStates
+        {
+            get
+            {
+                List<string> states = [];
+
+                if (element.Properties.IsEnabled.TryGetValue(out var isEnabled) && !isEnabled)
+                {
+                    states.Add("disabled");
+                }
+
+                if (element.Patterns.Value.TryGetPattern(out var valuePattern)
+                    && valuePattern.IsReadOnly.TryGetValue(out var valueReadOnly)
+                    && valueReadOnly)
+                {
+                    states.Add("readonly");
+                }
+                else if (element.Patterns.RangeValue.TryGetPattern(out var rangeValuePattern)
+                    && rangeValuePattern.IsReadOnly.TryGetValue(out var rangeReadOnly)
+                    && rangeReadOnly)
+                {
+                    states.Add("readonly");
+                }
+
+                if (element.Patterns.Toggle.TryGetPattern(out var togglePattern)
+                    && togglePattern.ToggleState.TryGetValue(out var toggleState))
+                {
+                    if (toggleState == ToggleState.On)
+                    {
+                        states.Add("checked");
+                    }
+                    else if (toggleState == ToggleState.Indeterminate)
+                    {
+                        states.Add("mixed");
+                    }
+                }
+
+                if (element.Patterns.ExpandCollapse.TryGetPattern(out var expandCollapsePattern)
+                    && expandCollapsePattern.ExpandCollapseState.TryGetValue(out var expandCollapseState))
+                {
+                    if (expandCollapseState == ExpandCollapseState.Expanded)
+                    {
+                        states.Add("expanded");
+                    }
+                    else if (expandCollapseState == ExpandCollapseState.Collapsed)
+                    {
+                        states.Add("collapsed");
+                    }
+                    else if (expandCollapseState == ExpandCollapseState.PartiallyExpanded)
+                    {
+                        states.Add("partial");
+                    }
+                }
+
+                if (element.Patterns.SelectionItem.TryGetPattern(out var selectionItemPattern)
+                    && selectionItemPattern.IsSelected.TryGetValue(out var isSelected)
+                    && isSelected)
+                {
+                    states.Add("selected");
+                }
+
+                return states;
+            }
+        }
 
         public bool IsVisible => (!element.Properties.BoundingRectangle.TryGetValue(out var bounds)
             || (bounds.Width > 0 && bounds.Height > 0))
@@ -26,8 +119,8 @@ internal static class AutomationElementExtensions
         public bool IsInvocable => element.Patterns.Invoke.TryGetPattern(out _);
 
         public bool HasPresentation => ReadDisplayName(element) is not null
-            || ReadSnapshotValue(element) is not null
-            || ReadStates(element).Count > 0;
+            || element.SnapshotValue is not null
+            || element.SnapshotStates.Count > 0;
     }
 
     private static ControlType ReadControlType(AutomationElement element)
@@ -50,105 +143,6 @@ internal static class AutomationElementExtensions
         }
 
         return null;
-    }
-
-    private static string? ReadValue(AutomationElement element, ControlType controlType)
-    {
-        return controlType switch
-        {
-            ControlType.Edit or ControlType.ComboBox => ReadValuePatternText(element),
-            ControlType.Spinner => ReadValuePatternText(element) ?? ReadRangeValueText(element),
-            ControlType.Slider or ControlType.ProgressBar => ReadRangeValueText(element),
-            _ => null,
-        };
-    }
-
-    private static string? ReadValuePatternText(AutomationElement element)
-    {
-        return element.Patterns.Value.TryGetPattern(out var valuePattern)
-            && valuePattern.Value.TryGetValue(out var value)
-                ? value
-                : null;
-    }
-
-    private static string? ReadSnapshotValue(AutomationElement element)
-    {
-        var name = ReadDisplayName(element);
-        var value = ReadValue(element, ReadControlType(element));
-        return string.Equals(name, value, StringComparison.Ordinal) ? null : value;
-    }
-
-    private static string? ReadRangeValueText(AutomationElement element)
-    {
-        if (!element.Patterns.RangeValue.TryGetPattern(out var rangeValuePattern)
-            || !rangeValuePattern.Value.TryGetValue(out var value))
-        {
-            return null;
-        }
-
-        return value.ToString("0.###", CultureInfo.InvariantCulture);
-    }
-
-    private static List<string> ReadStates(AutomationElement element)
-    {
-        List<string> states = [];
-
-        if (element.Properties.IsEnabled.TryGetValue(out var isEnabled) && !isEnabled)
-        {
-            states.Add("disabled");
-        }
-
-        if (element.Patterns.Value.TryGetPattern(out var valuePattern)
-            && valuePattern.IsReadOnly.TryGetValue(out var valueReadOnly)
-            && valueReadOnly)
-        {
-            states.Add("readonly");
-        }
-        else if (element.Patterns.RangeValue.TryGetPattern(out var rangeValuePattern)
-            && rangeValuePattern.IsReadOnly.TryGetValue(out var rangeReadOnly)
-            && rangeReadOnly)
-        {
-            states.Add("readonly");
-        }
-
-        if (element.Patterns.Toggle.TryGetPattern(out var togglePattern)
-            && togglePattern.ToggleState.TryGetValue(out var toggleState))
-        {
-            if (toggleState == ToggleState.On)
-            {
-                states.Add("checked");
-            }
-            else if (toggleState == ToggleState.Indeterminate)
-            {
-                states.Add("mixed");
-            }
-        }
-
-        if (element.Patterns.ExpandCollapse.TryGetPattern(out var expandCollapsePattern)
-            && expandCollapsePattern.ExpandCollapseState.TryGetValue(out var expandCollapseState))
-        {
-            if (expandCollapseState == ExpandCollapseState.Expanded)
-            {
-                states.Add("expanded");
-            }
-            else if (expandCollapseState == ExpandCollapseState.Collapsed)
-            {
-                states.Add("collapsed");
-            }
-            else if (expandCollapseState == ExpandCollapseState.PartiallyExpanded)
-            {
-                states.Add("partial");
-            }
-        }
-
-        if (element.Patterns.SelectionItem.TryGetPattern(out var selectionItemPattern)
-            && selectionItemPattern.IsSelected.TryGetValue(out var isSelected)
-            && isSelected)
-        {
-            states.Add("selected");
-        }
-
-        return states;
     }
 
 }
