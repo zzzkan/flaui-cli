@@ -16,14 +16,18 @@ internal static class AutomationElementExtensions
 
         public IReadOnlyList<string> SnapshotStates => ReadStates(element);
 
-        public bool IsVisible => HasVisibleBounds(element) && !IsOffscreen(element);
+        public bool IsVisible => (!element.Properties.BoundingRectangle.TryGetValue(out var bounds)
+            || (bounds.Width > 0 && bounds.Height > 0))
+            && !(element.Properties.IsOffscreen.TryGetValue(out var offscreen) && offscreen);
 
         public bool IsKeyboardFocusable =>
             element.Properties.IsKeyboardFocusable.TryGetValue(out var keyboardFocusable) && keyboardFocusable;
 
         public bool IsInvocable => element.Patterns.Invoke.TryGetPattern(out _);
 
-        public bool HasPresentation => HasPresentation(element);
+        public bool HasPresentation => ReadDisplayName(element) is not null
+            || ReadSnapshotValue(element) is not null
+            || ReadStates(element).Count > 0;
     }
 
     private static ControlType ReadControlType(AutomationElement element)
@@ -147,22 +151,4 @@ internal static class AutomationElementExtensions
         return states;
     }
 
-    private static bool HasPresentation(AutomationElement element)
-    {
-        var name = ReadDisplayName(element);
-        var value = ReadSnapshotValue(element);
-        var states = ReadStates(element);
-        return name is not null || value is not null || states.Count > 0;
-    }
-
-    private static bool HasVisibleBounds(AutomationElement element)
-    {
-        return !element.Properties.BoundingRectangle.TryGetValue(out var bounds)
-            || (bounds.Width > 0 && bounds.Height > 0);
-    }
-
-    private static bool IsOffscreen(AutomationElement element)
-    {
-        return element.Properties.IsOffscreen.TryGetValue(out var offscreen) && offscreen;
-    }
 }
