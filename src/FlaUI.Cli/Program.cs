@@ -1,7 +1,13 @@
 using System.CommandLine;
+using System.Runtime.InteropServices;
 using FlaUI.Cli.Commands;
 using StreamJsonRpc;
 using StreamJsonRpc.Protocol;
+
+if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+{
+    throw new PlatformNotSupportedException("This CLI tool only supports Windows.");
+}
 
 var rootCommand = new RootCommand("Windows application automation CLI tool using FlaUI.");
 

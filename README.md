@@ -16,13 +16,16 @@ This project is inspired by [playwright-cli](https://github.com/microsoft/playwr
 
 ## Requirements
 
-- Windows
+- Windows x64
 - .NET 10 SDK or newer
 - A Windows application that exposes useful UI Automation data
 
 ## Getting Started
 
-TODO
+```powershell
+dotnet tool install --global flaui-cli
+flaui-cli --help
+```
 
 ## State and Snapshots
 
