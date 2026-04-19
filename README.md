@@ -23,7 +23,9 @@ This project is inspired by [playwright-cli](https://github.com/microsoft/playwr
 ## Getting Started
 
 ```powershell
-dotnet tool install --global flaui-cli
+dotnet tool install --global flaui-cli # Install the CLI globally
+gh skill install zzzkan/flaui-cli flaui-cli # Install agent skills
+
 flaui-cli --help
 ```
 
