@@ -13,7 +13,6 @@ internal sealed class SnapshotCommand : Command
                 async (proxy, ct) =>
                 {
                     await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

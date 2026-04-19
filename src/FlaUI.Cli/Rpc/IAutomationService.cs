@@ -13,9 +13,9 @@ internal partial interface IAutomationService
 
     Task<IReadOnlyList<WindowInfo>> ListAsync(CancellationToken cancellationToken = default);
 
-    Task SnapshotAsync(Stream artifactStream, CancellationToken cancellationToken = default);
+    Task SnapshotAsync(string path, CancellationToken cancellationToken = default);
 
-    Task ScreenshotAsync(ElementRef target, Stream artifactStream, CancellationToken cancellationToken = default);
+    Task ScreenshotAsync(ElementRef target, string path, CancellationToken cancellationToken = default);
 
     Task ClickAsync(ElementRef target, string button, bool isDouble, CancellationToken cancellationToken = default);
 

@@ -23,16 +23,13 @@ internal sealed class LaunchCommand : Command
             var filename = parseResult.GetRequiredValue(filenameArgument);
             var args = parseResult.GetValue(appArgsOption);
 
-            return await CommandHelper.InvokeAutomationServiceAsync(
+            return await CommandHelper.InvokeAutomationServiceWithSnapshotAsync(
                 async (proxy, ct) =>
                 {
                     var window = await proxy.LaunchAsync(filename, string.IsNullOrWhiteSpace(args) ? null : args, ct);
                     Console.Out.WriteLine("### Attached Window");
                     Console.Out.WriteLine($"- Title: {window.Title}");
                     Console.Out.WriteLine($"- Process Name: {window.ProcessName}");
-
-                    await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

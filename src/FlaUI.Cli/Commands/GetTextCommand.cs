@@ -29,7 +29,6 @@ internal sealed class GetTextCommand : Command
                         var length = Math.Min(width, text.Length - i);
                         Console.Out.WriteLine(text.AsSpan(i, length));
                     }
-                    return 0;
                 },
                 cancellationToken);
         });

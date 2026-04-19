@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using FlaUI.Cli.Core;
 using FlaUI.Cli.Rpc;
-using Nerdbank.Streams;
 
 namespace FlaUI.Cli.Daemon;
 
@@ -21,8 +20,7 @@ internal static class DaemonProcessManager
             Console.Out.Flush();
 
             await pipe.WaitForConnectionAsync(cts.Token);
-            using var stream = await MultiplexingStream.CreateAsync(pipe, cts.Token);
-            using var rpc = await AutomationServiceRpcFactory.CreateServerAsync(stream, rpcTarget, cts.Token);
+            using var rpc = AutomationServiceRpcFactory.CreateServer(pipe, rpcTarget);
 
             cts.Token.ThrowIfCancellationRequested();
             Console.Out.WriteLine("CLIENT_CONNECTED");

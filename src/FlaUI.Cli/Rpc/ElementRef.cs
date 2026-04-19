@@ -1,7 +1,9 @@
 using System.Globalization;
+using MessagePack;
 
 namespace FlaUI.Cli.Rpc;
 
+[MessagePackObject]
 internal sealed record ElementRef
 {
     public ElementRef(int element)
@@ -10,6 +12,7 @@ internal sealed record ElementRef
         Element = element;
     }
 
+    [Key(0)]
     public int Element { get; }
 
     public override string ToString() => $"e{Element}";

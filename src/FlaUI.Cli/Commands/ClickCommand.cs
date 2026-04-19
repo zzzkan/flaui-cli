@@ -30,15 +30,12 @@ internal sealed class ClickCommand : Command
             var targetRef = ElementRef.Parse(parseResult.GetRequiredValue(refArgument));
             var button = parseResult.GetRequiredValue(buttonOption);
             var isDouble = parseResult.GetValue(doubleOption);
-            return await CommandHelper.InvokeAutomationServiceAsync(
+            return await CommandHelper.InvokeAutomationServiceWithSnapshotAsync(
                 async (proxy, ct) =>
                 {
                     await proxy.ClickAsync(targetRef, button, isDouble, ct);
                     var message = $"Clicked {targetRef} with {button} button{(isDouble ? " (double-click)" : "")}.";
                     Console.Out.WriteLine(message);
-
-                    await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

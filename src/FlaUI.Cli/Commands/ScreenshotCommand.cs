@@ -19,7 +19,6 @@ internal sealed class ScreenshotCommand : Command
                 async (proxy, ct) =>
                 {
                     await CommandHelper.ScreenshotAsync(ElementRef.Parse(refId), proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

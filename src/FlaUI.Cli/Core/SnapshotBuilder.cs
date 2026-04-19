@@ -37,7 +37,7 @@ internal static class SnapshotBuilder
         writer.Write("- ");
         writer.Write(node.Role);
 
-        if (node.Name is not null)
+        if (!string.IsNullOrWhiteSpace(node.Name))
         {
             writer.Write(' ');
             WriteQuotedValue(writer, node.Name);
@@ -50,7 +50,7 @@ internal static class SnapshotBuilder
 
         if (node.Children.Count > 0)
         {
-            if (node.Value is not null)
+            if (!string.IsNullOrWhiteSpace(node.Value))
             {
                 writer.Write(" [value=");
                 WriteQuotedValue(writer, node.Value);
@@ -66,7 +66,7 @@ internal static class SnapshotBuilder
             return;
         }
 
-        if (node.Value is not null)
+        if (!string.IsNullOrWhiteSpace(node.Value))
         {
             writer.Write(": ");
             writer.WriteLine(node.Value);

@@ -11,6 +11,7 @@ internal sealed class CloseCommand : Command
         var refArgument = new Argument<string>("ref")
         {
             Description = "Root window ref from the latest snapshot.",
+            DefaultValueFactory = _ => "e1",
         };
         Arguments.Add(refArgument);
         SetAction(async (parseResult, cancellationToken) =>
@@ -30,7 +31,6 @@ internal sealed class CloseCommand : Command
                     {
                         // Ignore snapshot failure since the window might have been closed successfully but the snapshot might fail due to the window being closed.
                     }
-                    return 0;
                 },
                 cancellationToken);
         });

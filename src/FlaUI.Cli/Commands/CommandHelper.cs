@@ -1,14 +1,13 @@
 using System.Globalization;
 using FlaUI.Cli.Daemon;
 using FlaUI.Cli.Rpc;
-using Nerdbank.Streams;
 
 namespace FlaUI.Cli.Commands;
 
 internal static class CommandHelper
 {
-    public static async Task<TResult> InvokeAutomationServiceAsync<TResult>(
-        Func<IAutomationService, CancellationToken, Task<TResult>> action,
+    public static async Task<int> InvokeAutomationServiceAsync(
+        Func<IAutomationService, CancellationToken, Task> action,
         CancellationToken cancellationToken = default)
     {
         if (await DaemonProcessManager.EnsureExternalProcessRunningAsync(cancellationToken) is { } daemon)
@@ -19,19 +18,31 @@ internal static class CommandHelper
         }
 
         await using var pipe = await PipeFactory.CreateClientAndConnectAsync(cancellationToken);
-        await using var stream = await MultiplexingStream.CreateAsync(pipe, cancellationToken);
-        var proxy = await AutomationServiceRpcFactory.CreateClientAsync(stream, cancellationToken);
-        return await action(proxy, cancellationToken);
+        var proxy = AutomationServiceRpcFactory.CreateClient(pipe);
+        await action(proxy, cancellationToken);
+        return 0;
+    }
+
+    public static Task<int> InvokeAutomationServiceWithSnapshotAsync(
+        Func<IAutomationService, CancellationToken, Task> action,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeAutomationServiceAsync(
+            async (proxy, ct) =>
+            {
+                await action(proxy, ct);
+                await SnapshotAsync(proxy, ct);
+            },
+            cancellationToken);
     }
 
     public static async Task SnapshotAsync(
-        IAutomationService automation,
+        IAutomationService proxy,
         CancellationToken cancellationToken = default)
     {
-        var fileName = $"snapshot-{Timestamp}.yml";
-        var (_, displayPath) = await WriteFileStream(
-            fileName,
-            automation.SnapshotAsync,
+        var (_, displayPath) = await WriteFileAsync(
+            $"snapshot-{Timestamp}.yml",
+            proxy.SnapshotAsync,
             cancellationToken);
         Console.Out.WriteLine("### Snapshot");
         Console.Out.WriteLine($"[Snapshot]({displayPath})");
@@ -39,13 +50,12 @@ internal static class CommandHelper
 
     public static async Task ScreenshotAsync(
         ElementRef target,
-        IAutomationService automation,
+        IAutomationService proxy,
         CancellationToken cancellationToken = default)
     {
-        var fileName = $"screenshot-{Timestamp}.png";
-        var (_, displayPath) = await WriteFileStream(
-            fileName,
-            (stream, ct) => automation.ScreenshotAsync(target, stream, ct),
+        var (_, displayPath) = await WriteFileAsync(
+            $"screenshot-{Timestamp}.png",
+            (path, ct) => proxy.ScreenshotAsync(target, path, ct),
             cancellationToken);
         Console.Out.WriteLine("### Screenshot");
         Console.Out.WriteLine($"[Screenshot]({displayPath})");
@@ -53,9 +63,9 @@ internal static class CommandHelper
 
     private static string Timestamp => DateTime.UtcNow.ToString("yyyy-MM-ddTHH-mm-ss-fffZ", CultureInfo.InvariantCulture);
 
-    private static async Task<(string FullPath, string DisplayPath)> WriteFileStream(
+    private static async Task<(string FullPath, string DisplayPath)> WriteFileAsync(
         string fileName,
-        Func<Stream, CancellationToken, Task> writeAsync,
+        Func<string, CancellationToken, Task> writeAsync,
         CancellationToken cancellationToken = default)
     {
         const string subDirectory = ".flaui-cli";
@@ -65,17 +75,7 @@ internal static class CommandHelper
         var displayPath = $"{subDirectory}/{fileName}";
         try
         {
-            await using var stream = new FileStream(
-                fullPath,
-                new FileStreamOptions
-                {
-                    Mode = FileMode.CreateNew,
-                    Access = FileAccess.Write,
-                    Share = FileShare.Read,
-                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
-                });
-            await writeAsync(stream, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            await writeAsync(fullPath, cancellationToken);
             return (fullPath, displayPath);
         }
         catch

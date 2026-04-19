@@ -1,39 +1,24 @@
-using System.IO.Pipelines;
-using Nerdbank.Streams;
 using StreamJsonRpc;
 
 namespace FlaUI.Cli.Rpc;
 
 internal static class AutomationServiceRpcFactory
 {
-    private const string RpcChannelName = "IAutomationServiceChannel";
-
-    public static async Task<IAutomationService> CreateClientAsync(
-        MultiplexingStream multiplexingStream,
-        CancellationToken cancellationToken = default)
+    public static IAutomationService CreateClient(Stream pipe)
     {
-        var rpcChannel = await multiplexingStream.OfferChannelAsync(RpcChannelName, cancellationToken);
-        return JsonRpc.Attach<IAutomationService>(CreateMessageHandler(rpcChannel, multiplexingStream));
+        return JsonRpc.Attach<IAutomationService>(CreateMessageHandler(pipe));
     }
 
-    public static async Task<JsonRpc> CreateServerAsync(
-        MultiplexingStream multiplexingStream,
-        IAutomationService rpcTarget,
-        CancellationToken cancellationToken = default)
+    public static JsonRpc CreateServer(
+        Stream pipe,
+        IAutomationService rpcTarget)
     {
-        var rpcChannel = await multiplexingStream.AcceptChannelAsync(RpcChannelName, cancellationToken);
-        return new JsonRpc(CreateMessageHandler(rpcChannel, multiplexingStream), rpcTarget);
+        return new JsonRpc(CreateMessageHandler(pipe), rpcTarget);
     }
 
     private static LengthHeaderMessageHandler CreateMessageHandler(
-        IDuplexPipe rpcChannel,
-        MultiplexingStream multiplexingStream)
+        Stream pipe)
     {
-        return new LengthHeaderMessageHandler(
-            rpcChannel,
-            new SystemTextJsonFormatter
-            {
-                MultiplexingStream = multiplexingStream,
-            });
+        return new LengthHeaderMessageHandler(pipe, pipe, new MessagePackFormatter());
     }
 }

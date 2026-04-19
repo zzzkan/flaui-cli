@@ -23,14 +23,11 @@ internal sealed class FillCommand : Command
         {
             var targetRef = ElementRef.Parse(parseResult.GetRequiredValue(refArgument));
             var value = parseResult.GetRequiredValue(valueArgument);
-            return await CommandHelper.InvokeAutomationServiceAsync(
+            return await CommandHelper.InvokeAutomationServiceWithSnapshotAsync(
                 async (proxy, ct) =>
                 {
                     await proxy.FillAsync(targetRef, value, ct);
                     Console.Out.WriteLine($"Filled {targetRef} with value '{value}'.");
-
-                    await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

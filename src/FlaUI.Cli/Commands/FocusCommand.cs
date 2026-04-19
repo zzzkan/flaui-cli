@@ -17,14 +17,11 @@ internal sealed class FocusCommand : Command
         SetAction(async (parseResult, cancellationToken) =>
         {
             var windowRef = ElementRef.Parse(parseResult.GetRequiredValue(refArgument));
-            return await CommandHelper.InvokeAutomationServiceAsync(
+            return await CommandHelper.InvokeAutomationServiceWithSnapshotAsync(
                 async (proxy, ct) =>
                 {
                     await proxy.FocusAsync(windowRef, ct);
                     Console.Out.WriteLine($"Focused {windowRef}.");
-
-                    await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });

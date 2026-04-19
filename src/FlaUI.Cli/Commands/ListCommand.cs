@@ -16,7 +16,7 @@ internal sealed class ListCommand : Command
                     if (windows.Count == 0)
                     {
                         Console.Out.WriteLine("No visible top-level desktop windows found.");
-                        return 0;
+                        return;
                     }
 
                     Console.Out.WriteLine("### Windows");
@@ -24,8 +24,6 @@ internal sealed class ListCommand : Command
                     {
                         Console.Out.WriteLine($"- {window.Title} ({window.ProcessName})");
                     }
-
-                    return 0;
                 },
                 cancellationToken);
         });

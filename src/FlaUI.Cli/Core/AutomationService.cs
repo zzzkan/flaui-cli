@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Drawing.Imaging;
 using System.Text;
 using FlaUI.Cli.Rpc;
 using FlaUI.Core;
@@ -12,6 +11,10 @@ namespace FlaUI.Cli.Core;
 
 internal sealed class AutomationService : IAutomationService, IDisposable
 {
+    private const int SnapshotFileBufferSize = 64 * 1024;
+    private const int SnapshotWriterBufferSize = 32 * 1024;
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
     private readonly UIA3Automation _automation = new();
     private Window? _attachedWindow;
     private Dictionary<ElementRef, AutomationElement> _activeElements = [];
@@ -31,7 +34,7 @@ internal sealed class AutomationService : IAutomationService, IDisposable
             Arguments = arguments ?? string.Empty
         };
         using var application = Application.Launch(startInfo);
-        application.WaitWhileBusy(TimeSpan.FromSeconds(10));
+        application.WaitWhileBusy(TimeSpan.FromSeconds(1));
 
         Window? window = null;
 
@@ -97,33 +100,42 @@ internal sealed class AutomationService : IAutomationService, IDisposable
         return Task.FromResult<IReadOnlyList<WindowInfo>>(windowInfos);
     }
 
-    public async Task SnapshotAsync(
-        Stream stream,
+    public Task SnapshotAsync(
+        string path,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(path);
         cancellationToken.ThrowIfCancellationRequested();
 
         var attachedWindow = RequireAttachedWindow();
-        using var writer = new StreamWriter(stream, new UTF8Encoding(false), bufferSize: 4096, leaveOpen: true);
+        using var stream = new FileStream(
+                path,
+                new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.Read,
+                    BufferSize = SnapshotFileBufferSize,
+                });
+        using var writer = new StreamWriter(stream, Utf8NoBom, bufferSize: SnapshotWriterBufferSize);
         _activeElements = SnapshotBuilder.Build(attachedWindow, writer);
-        await writer.FlushAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
-    public async Task ScreenshotAsync(
+    public Task ScreenshotAsync(
         ElementRef target,
-        Stream stream,
+        string path,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(path);
         cancellationToken.ThrowIfCancellationRequested();
 
         var element = RequireElement(target);
         element.Focus();
         using var capture = Capture.Element(element);
-        capture.Bitmap.Save(stream, ImageFormat.Png);
-        await stream.FlushAsync(cancellationToken);
+        capture.ToFile(path);
+        return Task.CompletedTask;
     }
 
     public Task ClickAsync(

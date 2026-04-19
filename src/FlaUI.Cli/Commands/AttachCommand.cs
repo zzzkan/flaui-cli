@@ -23,16 +23,13 @@ internal sealed class AttachCommand : Command
         SetAction(async (parseResult, cancellationToken) =>
         {
             var title = parseResult.GetRequiredValue(titleArgument);
-            return await CommandHelper.InvokeAutomationServiceAsync(
+            return await CommandHelper.InvokeAutomationServiceWithSnapshotAsync(
                 async (proxy, ct) =>
                 {
                     var window = await proxy.AttachAsync(title, ct);
                     Console.Out.WriteLine("### Attached Window");
                     Console.Out.WriteLine($"- Title: {window.Title}");
                     Console.Out.WriteLine($"- Process Name: {window.ProcessName}");
-
-                    await CommandHelper.SnapshotAsync(proxy, ct);
-                    return 0;
                 },
                 cancellationToken);
         });
