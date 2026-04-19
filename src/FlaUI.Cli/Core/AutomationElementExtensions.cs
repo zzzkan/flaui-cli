@@ -8,15 +8,34 @@ internal static class AutomationElementExtensions
 {
     extension(AutomationElement element)
     {
-        public ControlType SnapshotControlType => ReadControlType(element);
+        public ControlType SnapshotControlType =>
+            element.Properties.ControlType.TryGetValue(out var controlType)
+                ? controlType
+                : ControlType.Custom;
 
-        public string? SnapshotName => ReadDisplayName(element);
+        public string? SnapshotName
+        {
+            get
+            {
+                if (element.Properties.Name.TryGetValue(out var name))
+                {
+                    return name;
+                }
+
+                if (element.Properties.AutomationId.TryGetValue(out var automationId))
+                {
+                    return automationId;
+                }
+
+                return null;
+            }
+        }
 
         public string? SnapshotValue
         {
             get
             {
-                var controlType = ReadControlType(element);
+                var controlType = element.SnapshotControlType;
                 var value = controlType switch
                 {
                     ControlType.Edit or ControlType.ComboBox =>
@@ -40,7 +59,7 @@ internal static class AutomationElementExtensions
                     _ => null,
                 };
 
-                return string.Equals(ReadDisplayName(element), value, StringComparison.Ordinal) ? null : value;
+                return string.Equals(element.SnapshotName, value, StringComparison.Ordinal) ? null : value;
             }
         }
 
@@ -118,31 +137,8 @@ internal static class AutomationElementExtensions
 
         public bool IsInvocable => element.Patterns.Invoke.TryGetPattern(out _);
 
-        public bool HasPresentation => ReadDisplayName(element) is not null
+        public bool HasPresentation => element.SnapshotName is not null
             || element.SnapshotValue is not null
             || element.SnapshotStates.Count > 0;
     }
-
-    private static ControlType ReadControlType(AutomationElement element)
-    {
-        return element.Properties.ControlType.TryGetValue(out var controlType)
-            ? controlType
-            : ControlType.Custom;
-    }
-
-    private static string? ReadDisplayName(AutomationElement element)
-    {
-        if (element.Properties.Name.TryGetValue(out var name))
-        {
-            return name;
-        }
-
-        if (element.Properties.AutomationId.TryGetValue(out var automationId))
-        {
-            return automationId;
-        }
-
-        return null;
-    }
-
 }
